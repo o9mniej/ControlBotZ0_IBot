@@ -5,6 +5,8 @@
 ██╔══██╗  ╚██╔╝      ╚════██║██║ ██╔██╗ ██╔═══╝ ██╔══╝  ██║╚██╗██║██║╚██╗██║  ╚██╔╝       ██╔══╝  ██║   ██║ ██╔██╗ ╚════██║
 ██████╔╝   ██║       ███████║██║██╔╝ ██╗██║     ███████╗██║ ╚████║██║ ╚████║   ██║███████╗██║     ╚██████╔╝██╔╝ ██╗     ██║
 ╚═════╝    ╚═╝       ╚══════╝╚═╝╚═╝  ╚═╝╚═╝     ╚══════╝╚═╝  ╚═══╝╚═╝  ╚═══╝   ╚═╝╚══════╝╚═╝      ╚═════╝ ╚═╝  ╚═╝     ╚═╝
+
+thank you for making this i had so much fun :)
 ]]
 
 local TextChatService = game:GetService("TextChatService")
@@ -66,7 +68,7 @@ if LocalPLR.Name ~= Username then
 
     end
 
-    chat("ControlBotZ Running!")
+    chat("IBot Running!")
     game:GetService("StarterGui"):SetCore("SendNotification", {
         Title = "Thank You",
         Text = "Thank you for using ControlBotZ!",
