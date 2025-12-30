@@ -36,6 +36,20 @@ local function safeChat(text)
 end
 
 -- ======================
+-- SPLIT LONG MESSAGES
+-- ======================
+local function splitMessage(text, maxLength)
+    maxLength = maxLength or 200 -- Roblox safe limit
+    local chunks = {}
+    local startIndex = 1
+    while startIndex <= #text do
+        table.insert(chunks, text:sub(startIndex, startIndex + maxLength - 1))
+        startIndex = startIndex + maxLength
+    end
+    return chunks
+end
+
+-- ======================
 -- AI SYSTEM PROMPT
 -- ======================
 local systemPrompt = "You are a friendly Roblox bot named IBot. Reply with short, simple sentences."
@@ -47,6 +61,7 @@ task.delay(2, function()
     safeChat("Hi! I'm IBot.")
     safeChat("Type .ai at the beginning of your message to talk to me.")
     safeChat("Example: .ai hello")
+    safeChat("I am also in beta so please go easy on me :)")
 end)
 
 -- ======================
@@ -79,7 +94,7 @@ function mainFunction(player, message)
             { role = "user", content = userText }
         },
         temperature = 1.0,
-        max_tokens = 60
+        max_tokens = 150
     }
 
     local res = http({
@@ -109,8 +124,10 @@ function mainFunction(player, message)
         reply = "I can only reply in chat."
     end
 
-    safeChat(reply)
+    -- Split long messages and send safely
+    for _, chunk in ipairs(splitMessage(reply, 200)) do
+        safeChat(chunk)
+    end
 end
 
 botz:Init(mainFunction)
-
