@@ -8,17 +8,37 @@ local botz = loadstring(game:HttpGet(
 botz.Prefix = "."
 botz.Bots = {"IBot"}
 
-print("AI bot started (Xeno)")
+print("AI bot started")
 
 -- Xeno HTTP
 local http = request
-assert(http, "Xeno request function not found")
+assert(http, "request() not found (Xeno required)")
 
-local systemPrompt = "You are a Roblox bot. Reply with a short, simple sentence."
+-- Simple system prompt
+local systemPrompt = "You are a friendly Roblox bot. Reply with short, simple sentences."
+
+-- Bot introduction (after a short delay)
+task.delay(2, function()
+    botz:Chat("Hi! I'm IBot.")
+    botz:Chat("You can talk to me using .ai followed by your message.")
+    botz:Chat("Example: .ai hello")
+end)
 
 function mainFunction(player, message)
+    -- 🚫 Ignore the bot talking to itself
+    if player == botz.Bots[1] then return end
+
     local args = botz:GetArgs(message)
+
+    -- Only react to .ai
     if args[1] ~= ".ai" then return end
+
+    -- If user just types ".ai"
+    if #args == 1 then
+        botz:Chat("Use .ai followed by what you want to say.")
+        botz:Chat("Example: .ai hello")
+        return
+    end
 
     local userText = message:sub(5)
 
@@ -48,6 +68,11 @@ function mainFunction(player, message)
 
     local data = HttpService:JSONDecode(res.Body)
     local reply = data.choices[1].message.content
+
+    -- Extra safety: never let AI trigger itself
+    if reply:sub(1, 3) == ".ai" then
+        reply = "I can't use that command."
+    end
 
     botz:Chat(reply)
 end
