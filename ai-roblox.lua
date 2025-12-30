@@ -1,5 +1,6 @@
 local HttpService = game:GetService("HttpService")
 local Players = game:GetService("Players")
+local LocalPLR = Players.LocalPlayer
 
 -- Load ControlBotZ module
 local botz = loadstring(game:HttpGet(
@@ -160,14 +161,11 @@ local function mainFunction(player, message)
         -- WALKTO command
         elseif line:sub(1,7) == ".walkto" then
             local targetName = line:sub(9)
-            local targetPLR = Players:FindFirstChild(targetName)
-            if targetPLR and targetPLR.Character and targetPLR.Character:FindFirstChild("HumanoidRootPart") then
-                local function runCode()
-                    if botz.LocalPlayer and botz.LocalPlayer.Character and botz.LocalPlayer.Character:FindFirstChild("Humanoid") then
-                        botz.LocalPlayer.Character.Humanoid:MoveTo(targetPLR.Character.HumanoidRootPart.Position)
-                    end
+            local targetPlayer = Players:FindFirstChild(targetName)
+            if targetPlayer and targetPlayer.Character and targetPlayer.Character:FindFirstChild("HumanoidRootPart") then
+                if LocalPLR and LocalPLR.Character and LocalPLR.Character:FindFirstChild("Humanoid") then
+                    LocalPLR.Character.Humanoid:MoveTo(targetPlayer.Character.HumanoidRootPart.Position)
                 end
-                runCode()
             end
             print("[BOT EXECUTE] .walkto: " .. targetName)
         end
