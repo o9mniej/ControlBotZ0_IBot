@@ -139,6 +139,13 @@ local function mainFunction(player, message)
     local reply = data.choices[1].message.content
 
     -- ======================
+    -- LOG FULL AI RESPONSE
+    -- ======================
+    print("=== AI RAW RESPONSE ===")
+    print(reply)
+    print("=======================")
+
+    -- ======================
     -- PARSE AI COMMANDS
     -- ======================
     for line in reply:gmatch("[^\r\n]+") do
@@ -148,6 +155,7 @@ local function mainFunction(player, message)
             for _, chunk in ipairs(splitMessage(msg, 200)) do
                 safeChat(chunk)
             end
+            print("[BOT EXECUTE] .say: " .. msg)
 
         -- WALKTO command
         elseif line:sub(1,7) == ".walkto" then
@@ -161,6 +169,7 @@ local function mainFunction(player, message)
                 end
                 runCode()
             end
+            print("[BOT EXECUTE] .walkto: " .. targetName)
         end
     end
 end
