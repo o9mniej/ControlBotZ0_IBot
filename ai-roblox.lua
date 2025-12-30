@@ -7,9 +7,10 @@ botz.Bots = {"IBot"}
 
 botz:addAdmin("o9mniej1")
 botz:addAdmin("TheRealThomasPlayz")
-botz:addAdmin("N93333")
 
 botz:Chat("test")
+
+print("All admins: " .. table.concat(botz.Admins, ", "))
 
 function mainFunction(player, message)
     local args = botz:GetArgs(message) -- ALWAYS first
@@ -26,3 +27,4 @@ function mainFunction(player, message)
 end
 
 botz:Init(mainFunction)
+
