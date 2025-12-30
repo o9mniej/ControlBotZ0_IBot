@@ -14,19 +14,49 @@ print("AI bot started")
 local http = request
 assert(http, "request() not found (Xeno required)")
 
--- Simple system prompt
-local systemPrompt = "You are a friendly Roblox bot. Reply with short, simple sentences."
+-- ======================
+-- CHAT QUEUE (ANTI ####)
+-- ======================
+local chatQueue = {}
+local chatting = false
 
--- Bot introduction (after a short delay)
+local function safeChat(text)
+    table.insert(chatQueue, text)
+
+    if chatting then return end
+    chatting = true
+
+    task.spawn(function()
+        while #chatQueue > 0 do
+            botz:Chat(table.remove(chatQueue, 1))
+            task.wait(1.2) -- safe delay
+        end
+        chatting = false
+    end)
+end
+
+-- ======================
+-- AI SYSTEM PROMPT
+-- ======================
+local systemPrompt = "You are a friendly Roblox bot named IBot. Reply with short, simple sentences."
+
+-- ======================
+-- BOT INTRO
+-- ======================
 task.delay(2, function()
-    botz:Chat("Hi! I'm IBot.")
-    botz:Chat("You can talk to me using .ai followed by your message.")
-    botz:Chat("Example: .ai hello")
+    safeChat("Hi! I'm IBot.")
+    safeChat("You can talk to me using .ai followed by your message.")
+    safeChat("Example: .ai hello")
 end)
 
+-- ======================
+-- MAIN FUNCTION
+-- ======================
 function mainFunction(player, message)
-    -- 🚫 Ignore the bot talking to itself
-    if player == botz.Bots[1] then return end
+    -- 🚫 Ignore bot talking to itself
+    if typeof(player) == "string" and player == botz.Bots[1] then
+        return
+    end
 
     local args = botz:GetArgs(message)
 
@@ -35,8 +65,8 @@ function mainFunction(player, message)
 
     -- If user just types ".ai"
     if #args == 1 then
-        botz:Chat("Use .ai followed by what you want to say.")
-        botz:Chat("Example: .ai hello")
+        safeChat("Use .ai followed by what you want to say.")
+        safeChat("Example: .ai hello")
         return
     end
 
@@ -49,7 +79,7 @@ function mainFunction(player, message)
             { role = "user", content = userText }
         },
         temperature = 1.0,
-        max_tokens = 50
+        max_tokens = 60
     }
 
     local res = http({
@@ -62,19 +92,24 @@ function mainFunction(player, message)
     })
 
     if not res or not res.Body then
-        botz:Chat("AI error.")
+        safeChat("AI error.")
         return
     end
 
     local data = HttpService:JSONDecode(res.Body)
-    local reply = data.choices[1].message.content
-
-    -- Extra safety: never let AI trigger itself
-    if reply:sub(1, 3) == ".ai" then
-        reply = "I can't use that command."
+    if not data or not data.choices or not data.choices[1] then
+        safeChat("AI error.")
+        return
     end
 
-    botz:Chat(reply)
+    local reply = data.choices[1].message.content
+
+    -- 🚫 Prevent AI from triggering commands
+    if reply:sub(1, 1) == "." then
+        reply = "I can only reply in chat."
+    end
+
+    safeChat(reply)
 end
 
 botz:Init(mainFunction)
