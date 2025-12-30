@@ -1,6 +1,7 @@
 local HttpService = game:GetService("HttpService")
+local Players = game:GetService("Players")
 
--- Load ControlBotZ
+-- Load ControlBotZ module
 local botz = loadstring(game:HttpGet(
     "https://raw.githubusercontent.com/o9mniej/ControlBotZ0_IBot/refs/heads/main/ControlBotZ%20Module.lua"
 ))()
@@ -22,14 +23,13 @@ local chatting = false
 
 local function safeChat(text)
     table.insert(chatQueue, text)
-
     if chatting then return end
     chatting = true
 
     task.spawn(function()
         while #chatQueue > 0 do
             botz:Chat(table.remove(chatQueue, 1))
-            task.wait(1.2) -- safe delay
+            task.wait(1.2) -- safe delay to prevent Roblox errors
         end
         chatting = false
     end)
@@ -39,7 +39,7 @@ end
 -- SPLIT LONG MESSAGES
 -- ======================
 local function splitMessage(text, maxLength)
-    maxLength = maxLength or 200 -- Roblox safe limit
+    maxLength = maxLength or 200
     local chunks = {}
     local startIndex = 1
     while startIndex <= #text do
@@ -52,7 +52,14 @@ end
 -- ======================
 -- AI SYSTEM PROMPT
 -- ======================
-local systemPrompt = "You are a friendly Roblox bot named IBot. Reply with short, simple sentences."
+local systemPrompt = [[
+You are IBot, a friendly Roblox bot. You can output commands:
+.say <text> to chat
+.walkto <player> to move to a player
+
+You know which players are in the server and their names. 
+Respond with one or more commands, one per line. Only commands, nothing else.
+]]
 
 -- ======================
 -- BOT INTRO
@@ -65,48 +72,60 @@ task.delay(2, function()
 end)
 
 -- ======================
+-- HELPER: GET PLAYERS LIST
+-- ======================
+local function getPlayersText()
+    local text = ""
+    for _, plr in ipairs(Players:GetPlayers()) do
+        text = text .. "- " .. plr.Name
+        if plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
+            local pos = plr.Character.HumanoidRootPart.Position
+            text = text .. ", Position: ("..math.floor(pos.X)..","..math.floor(pos.Y)..","..math.floor(pos.Z)..")"
+        end
+        text = text .. "\n"
+    end
+    return text
+end
+
+-- ======================
 -- MAIN FUNCTION
 -- ======================
-function mainFunction(player, message)
-    -- 🚫 Ignore bot talking to itself
-    if typeof(player) == "string" and player == botz.Bots[1] then
-        return
-    end
+local function mainFunction(player, message)
+    -- Ignore bot talking to itself
+    if typeof(player) == "string" and player == botz.Bots[1] then return end
 
     local args = botz:GetArgs(message)
-
-    -- Only react to .ai
     if args[1] ~= ".ai" then return end
-
-    -- If user just types ".ai"
     if #args == 1 then
         safeChat("Use .ai followed by what you want to say.")
         safeChat("Example: .ai hello")
         return
     end
 
-    local userText = message:sub(5)
+    local userText = message:sub(5) -- remove ".ai "
+    local playersText = getPlayersText()
 
+    -- Prepare the AI request
     local payload = {
         model = "openai",
         messages = {
-            { role = "system", content = systemPrompt },
-            { role = "user", content = userText }
+            { role = "system", content = systemPrompt .. "\nPlayers in server:\n" .. playersText },
+            { role = "user", content = player.Name .. ": " .. userText }
         },
         temperature = 1.0,
         max_tokens = 150
     }
 
-    local res = http({
-        Url = "https://text.pollinations.ai/openai",
-        Method = "POST",
-        Headers = {
-            ["Content-Type"] = "application/json"
-        },
-        Body = HttpService:JSONEncode(payload)
-    })
+    local success, res = pcall(function()
+        return http({
+            Url = "https://text.pollinations.ai/openai",
+            Method = "POST",
+            Headers = { ["Content-Type"] = "application/json" },
+            Body = HttpService:JSONEncode(payload)
+        })
+    end)
 
-    if not res or not res.Body then
+    if not success or not res or not res.Body then
         safeChat("AI error.")
         return
     end
@@ -119,14 +138,30 @@ function mainFunction(player, message)
 
     local reply = data.choices[1].message.content
 
-    -- 🚫 Prevent AI from triggering commands
-    if reply:sub(1, 1) == "." then
-        reply = "I can only reply in chat."
-    end
+    -- ======================
+    -- PARSE AI COMMANDS
+    -- ======================
+    for line in reply:gmatch("[^\r\n]+") do
+        -- SAY command
+        if line:sub(1,4) == ".say" then
+            local msg = line:sub(6)
+            for _, chunk in ipairs(splitMessage(msg, 200)) do
+                safeChat(chunk)
+            end
 
-    -- Split long messages and send safely
-    for _, chunk in ipairs(splitMessage(reply, 200)) do
-        safeChat(chunk)
+        -- WALKTO command
+        elseif line:sub(1,7) == ".walkto" then
+            local targetName = line:sub(9)
+            local targetPLR = Players:FindFirstChild(targetName)
+            if targetPLR and targetPLR.Character and targetPLR.Character:FindFirstChild("HumanoidRootPart") then
+                local function runCode()
+                    if botz.LocalPlayer and botz.LocalPlayer.Character and botz.LocalPlayer.Character:FindFirstChild("Humanoid") then
+                        botz.LocalPlayer.Character.Humanoid:MoveTo(targetPLR.Character.HumanoidRootPart.Position)
+                    end
+                end
+                runCode()
+            end
+        end
     end
 end
 
