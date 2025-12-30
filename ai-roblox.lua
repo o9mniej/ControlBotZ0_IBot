@@ -45,7 +45,7 @@ local systemPrompt = "You are a friendly Roblox bot named IBot. Reply with short
 -- ======================
 task.delay(2, function()
     safeChat("Hi! I'm IBot.")
-    safeChat("You can talk to me using .ai followed by your message.")
+    safeChat("Type .ai at the beginning of your message to talk to me.")
     safeChat("Example: .ai hello")
 end)
 
@@ -113,3 +113,4 @@ function mainFunction(player, message)
 end
 
 botz:Init(mainFunction)
+
