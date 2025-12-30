@@ -8,22 +8,19 @@ local botz = loadstring(game:HttpGet(
 botz.Prefix = "."
 botz.Bots = {"IBot"}
 
-print("AI bot started")
+print("AI bot started (Xeno)")
 
--- VERY simple system prompt
-local systemPrompt = [[
-You are a Roblox bot.
-Reply with a short, simple sentence.
-Do not use commands.
-]]
+-- Xeno HTTP
+local http = request
+assert(http, "Xeno request function not found")
+
+local systemPrompt = "You are a Roblox bot. Reply with a short, simple sentence."
 
 function mainFunction(player, message)
     local args = botz:GetArgs(message)
-
-    -- Only react to .ai
     if args[1] ~= ".ai" then return end
 
-    local userText = message:sub(5) -- remove ".ai "
+    local userText = message:sub(5)
 
     local payload = {
         model = "openai",
@@ -35,23 +32,23 @@ function mainFunction(player, message)
         max_tokens = 50
     }
 
-    local success, response = pcall(function()
-        return HttpService:PostAsync(
-            "https://text.pollinations.ai/openai",
-            HttpService:JSONEncode(payload),
-            Enum.HttpContentType.ApplicationJson
-        )
-    end)
+    local res = http({
+        Url = "https://text.pollinations.ai/openai",
+        Method = "POST",
+        Headers = {
+            ["Content-Type"] = "application/json"
+        },
+        Body = HttpService:JSONEncode(payload)
+    })
 
-    if not success then
+    if not res or not res.Body then
         botz:Chat("AI error.")
         return
     end
 
-    local data = HttpService:JSONDecode(response)
+    local data = HttpService:JSONDecode(res.Body)
     local reply = data.choices[1].message.content
 
-    -- Make the bot speak
     botz:Chat(reply)
 end
 
