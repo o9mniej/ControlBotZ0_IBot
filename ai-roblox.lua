@@ -30,7 +30,7 @@ local function safeChat(text)
     task.spawn(function()
         while #chatQueue > 0 do
             botz:Chat(table.remove(chatQueue, 1))
-            task.wait(1.2)
+            task.wait(1.2) -- safe delay to prevent Roblox errors
         end
         chatting = false
     end)
@@ -92,62 +92,52 @@ end
 -- MAIN FUNCTION
 -- ======================
 local function mainFunction(player, message)
+    -- Ignore bot talking to itself
     if typeof(player) == "string" and player == botz.Bots[1] then return end
 
     local args = botz:GetArgs(message)
     if args[1] ~= ".ai" then return end
     if #args == 1 then
         safeChat("Use .ai followed by what you want to say.")
+        safeChat("Example: .ai hello")
         return
     end
 
-    local userText = message:sub(5)
+    local userText = message:sub(5) -- remove ".ai "
     local playersText = getPlayersText()
 
-    -- ======================
-    -- OLLAMA AI REQUEST (STABLE)
-    -- ======================
+    -- Prepare the AI request
     local payload = {
-        model = "llama3.2",
+        model = "roblox-rp",
         messages = {
-            {
-                role = "system",
-                content = systemPrompt .. "\nPlayers in server:\n" .. playersText
-            },
-            {
-                role = "user",
-                content = player.Name .. ": " .. userText
-            }
+            { role = "system", content = systemPrompt .. "\nPlayers in server:\n" .. playersText },
+            { role = "user", content = player.Name .. ": " .. userText }
         },
-        options = {
-            temperature = 0.7,
-            num_predict = 96
-        },
-        stream = false
+        temperature = 1.0,
+        max_tokens = 150
     }
 
     local success, res = pcall(function()
         return http({
-            Url = "http://127.0.0.1:5000/chat",
+            Url = "https://text.pollinations.ai/openai",
             Method = "POST",
-            Headers = {
-                ["Content-Type"] = "application/json"
-            },
+            Headers = { ["Content-Type"] = "application/json" },
             Body = HttpService:JSONEncode(payload)
         })
     end)
 
-    if not success or not res or res.StatusCode ~= 200 or not res.Body then
+    if not success or not res or not res.Body then
         safeChat("AI error.")
         return
     end
 
     local data = HttpService:JSONDecode(res.Body)
-    local reply = data and data.message and data.message.content
-    if not reply then
+    if not data or not data.choices or not data.choices[1] then
         safeChat("AI error.")
         return
     end
+
+    local reply = data.choices[1].message.content
 
     -- ======================
     -- LOG FULL AI RESPONSE
@@ -160,12 +150,15 @@ local function mainFunction(player, message)
     -- PARSE AI COMMANDS
     -- ======================
     for line in reply:gmatch("[^\r\n]+") do
+        -- SAY command
         if line:sub(1,4) == ".say" then
             local msg = line:sub(6)
             for _, chunk in ipairs(splitMessage(msg, 200)) do
                 safeChat(chunk)
             end
+            print("[BOT EXECUTE] .say: " .. msg)
 
+        -- WALKTO command
         elseif line:sub(1,7) == ".walkto" then
             local targetName = line:sub(9)
             local targetPlayer = Players:FindFirstChild(targetName)
@@ -174,6 +167,7 @@ local function mainFunction(player, message)
                     LocalPLR.Character.Humanoid:MoveTo(targetPlayer.Character.HumanoidRootPart.Position)
                 end
             end
+            print("[BOT EXECUTE] .walkto: " .. targetName)
         end
     end
 end
