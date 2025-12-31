@@ -88,11 +88,8 @@ local function getPlayersText()
     return text
 end
 
--- ======================
 -- MAIN FUNCTION
--- ======================
 local function mainFunction(player, message)
-    -- Ignore bot talking to itself
     if typeof(player) == "string" and player == botz.Bots[1] then return end
 
     local args = botz:GetArgs(message)
@@ -103,10 +100,12 @@ local function mainFunction(player, message)
         return
     end
 
-    local userText = message:sub(5) -- remove ".ai "
+    local userText = message:sub(5)
     local playersText = getPlayersText()
 
-    -- Prepare the AI request
+    -- ======================
+    -- PREPARE AI PAYLOAD
+    -- ======================
     local payload = {
         model = "roblox-rp",
         messages = {
@@ -117,6 +116,10 @@ local function mainFunction(player, message)
         max_tokens = 150
     }
 
+    print("=== DEBUG: Sending AI Request ===")
+    print(HttpService:JSONEncode(payload))
+    print("================================")
+
     local success, res = pcall(function()
         return http({
             Url = "https://text.pollinations.ai/openai",
@@ -126,22 +129,39 @@ local function mainFunction(player, message)
         })
     end)
 
-    if not success or not res or not res.Body then
-        safeChat("AI error.")
+    if not success then
+        print("[DEBUG] HTTP request failed:", res)
+        safeChat("AI error (request failed).")
         return
     end
 
-    local data = HttpService:JSONDecode(res.Body)
+    print("[DEBUG] HTTP Status:", res.StatusCode)
+    print("[DEBUG] Response Body:", res.Body)
+
+    if not res or res.StatusCode ~= 200 or not res.Body then
+        safeChat("AI error (bad response).")
+        return
+    end
+
+    local data
+    local decodeSuccess, decodeError = pcall(function()
+        data = HttpService:JSONDecode(res.Body)
+    end)
+
+    if not decodeSuccess then
+        print("[DEBUG] JSON decode error:", decodeError)
+        safeChat("AI error (decode failed).")
+        return
+    end
+
     if not data or not data.choices or not data.choices[1] then
-        safeChat("AI error.")
+        print("[DEBUG] Invalid AI response structure")
+        safeChat("AI error (invalid structure).")
         return
     end
 
     local reply = data.choices[1].message.content
 
-    -- ======================
-    -- LOG FULL AI RESPONSE
-    -- ======================
     print("=== AI RAW RESPONSE ===")
     print(reply)
     print("=======================")
@@ -150,7 +170,6 @@ local function mainFunction(player, message)
     -- PARSE AI COMMANDS
     -- ======================
     for line in reply:gmatch("[^\r\n]+") do
-        -- SAY command
         if line:sub(1,4) == ".say" then
             local msg = line:sub(6)
             for _, chunk in ipairs(splitMessage(msg, 200)) do
@@ -158,7 +177,6 @@ local function mainFunction(player, message)
             end
             print("[BOT EXECUTE] .say: " .. msg)
 
-        -- WALKTO command
         elseif line:sub(1,7) == ".walkto" then
             local targetName = line:sub(9)
             local targetPlayer = Players:FindFirstChild(targetName)
