@@ -68,8 +68,10 @@ No explanations.
 -- BOT INTRO
 -- ======================
 task.delay(2, function()
-    safeChat("Hi! I'm IBot (Ollama).")
-    safeChat("Use .ai <message> to talk to me.")
+    safeChat("Hi! I'm IBot.")
+    safeChat("Type .ai at the beginning of your message to talk to me.")
+    safeChat("Example: .ai hello")
+    safeChat("I am also in beta so please go easy on me :)")
 end)
 
 -- ======================
