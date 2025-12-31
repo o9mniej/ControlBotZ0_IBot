@@ -110,7 +110,7 @@ local function mainFunction(player, message)
 -- OLLAMA AI REQUEST
 -- ======================
 local payload = {
-    model = "llama3.1", -- MUST exist in ollama list
+    model = "llama3.2", -- MUST exist in ollama list
     messages = {
         {
             role = "system",
