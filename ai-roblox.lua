@@ -128,7 +128,7 @@ local function mainFunction(player, message)
 
     local success, res = pcall(function()
         return http({
-            Url = "http://127.0.0.1:11434/api/chat",
+            Url = "http://127.0.0.1:5000/chat",
             Method = "POST",
             Headers = {
                 ["Content-Type"] = "application/json"
