@@ -10,7 +10,7 @@ local botz = loadstring(game:HttpGet(
 botz.Prefix = "."
 botz.Bots = {"IBot"}
 
-print("AI bot started (OLLAMA)")
+print("AI bot started")
 
 -- Xeno HTTP
 local http = request
@@ -30,7 +30,7 @@ local function safeChat(text)
     task.spawn(function()
         while #chatQueue > 0 do
             botz:Chat(table.remove(chatQueue, 1))
-            task.wait(1.2)
+            task.wait(1.2) -- safe delay to prevent Roblox errors
         end
         chatting = false
     end)
@@ -42,10 +42,10 @@ end
 local function splitMessage(text, maxLength)
     maxLength = maxLength or 200
     local chunks = {}
-    local i = 1
-    while i <= #text do
-        table.insert(chunks, text:sub(i, i + maxLength - 1))
-        i += maxLength
+    local startIndex = 1
+    while startIndex <= #text do
+        table.insert(chunks, text:sub(startIndex, startIndex + maxLength - 1))
+        startIndex = startIndex + maxLength
     end
     return chunks
 end
@@ -54,14 +54,12 @@ end
 -- AI SYSTEM PROMPT
 -- ======================
 local systemPrompt = [[
-You are IBot, a Roblox bot.
-You MUST respond using ONLY commands:
+You are IBot, a friendly Roblox bot. You can output commands:
+.say <text> to chat
+.walkto <player> to move to a player
 
-.say <text>
-.walkto <player>
-
-One command per line.
-No explanations.
+You know which players are in the server and their names. 
+Respond with one or more commands, one per line. Only commands, nothing else.
 ]]
 
 -- ======================
@@ -75,12 +73,17 @@ task.delay(2, function()
 end)
 
 -- ======================
--- PLAYERS LIST
+-- HELPER: GET PLAYERS LIST
 -- ======================
 local function getPlayersText()
     local text = ""
     for _, plr in ipairs(Players:GetPlayers()) do
-        text ..= "- " .. plr.Name .. "\n"
+        text = text .. "- " .. plr.Name
+        if plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
+            local pos = plr.Character.HumanoidRootPart.Position
+            text = text .. ", Position: ("..math.floor(pos.X)..","..math.floor(pos.Y)..","..math.floor(pos.Z)..")"
+        end
+        text = text .. "\n"
     end
     return text
 end
@@ -89,82 +92,94 @@ end
 -- MAIN FUNCTION
 -- ======================
 local function mainFunction(player, message)
+    -- Ignore bot talking to itself
     if typeof(player) == "string" and player == botz.Bots[1] then return end
 
     local args = botz:GetArgs(message)
     if args[1] ~= ".ai" then return end
     if #args == 1 then
-        safeChat("Usage: .ai <message>")
+        safeChat("Use .ai followed by what you want to say.")
+        safeChat("Example: .ai hello")
         return
     end
 
-    local userText = message:sub(5)
+    local userText = message:sub(5) -- remove ".ai "
+    local playersText = getPlayersText()
 
-    local payload = {
-        model = "llama3", -- CHANGE MODEL HERE
-        messages = {
-            {
-                role = "system",
-                content = systemPrompt .. "\nPlayers:\n" .. getPlayersText()
-            },
-            {
-                role = "user",
-                content = player.Name .. ": " .. userText
-            }
+-- ======================
+-- OLLAMA AI REQUEST
+-- ======================
+local payload = {
+    model = "llama3.1", -- MUST exist in ollama list
+    messages = {
+        {
+            role = "system",
+            content = systemPrompt .. "\nPlayers in server:\n" .. playersText
         },
-        stream = false
-    }
+        {
+            role = "user",
+            content = player.Name .. ": " .. userText
+        }
+    },
+    temperature = 0.9,
+    max_tokens = 150,
+    stream = false
+}
 
-    local success, res = pcall(function()
-        return http({
-            Url = "http://127.0.0.1:11434/v1/chat/completions",
-            Method = "POST",
-            Headers = {
-                ["Content-Type"] = "application/json"
-            },
-            Body = HttpService:JSONEncode(payload)
-        })
-    end)
+local success, res = pcall(function()
+    return http({
+        Url = "http://127.0.0.1:11434/v1/chat/completions",
+        Method = "POST",
+        Headers = {
+            ["Content-Type"] = "application/json",
+            ["Authorization"] = "Bearer ollama"
+        },
+        Body = HttpService:JSONEncode(payload)
+    })
+end)
 
     if not success or not res or not res.Body then
-        safeChat("Ollama error.")
+        safeChat("AI error.")
         return
     end
 
     local data = HttpService:JSONDecode(res.Body)
     if not data or not data.choices or not data.choices[1] then
-        safeChat("Ollama error.")
+        safeChat("AI error.")
         return
     end
 
     local reply = data.choices[1].message.content
 
-    print("=== OLLAMA RAW RESPONSE ===")
+    -- ======================
+    -- LOG FULL AI RESPONSE
+    -- ======================
+    print("=== AI RAW RESPONSE ===")
     print(reply)
-    print("==========================")
+    print("=======================")
 
     -- ======================
-    -- EXECUTE COMMANDS
+    -- PARSE AI COMMANDS
     -- ======================
     for line in reply:gmatch("[^\r\n]+") do
-        -- .say
+        -- SAY command
         if line:sub(1,4) == ".say" then
             local msg = line:sub(6)
-            for _, chunk in ipairs(splitMessage(msg)) do
+            for _, chunk in ipairs(splitMessage(msg, 200)) do
                 safeChat(chunk)
             end
-            print("[EXECUTE] .say:", msg)
+            print("[BOT EXECUTE] .say: " .. msg)
 
-        -- .walkto
+        -- WALKTO command
         elseif line:sub(1,7) == ".walkto" then
             local targetName = line:sub(9)
-            local target = Players:FindFirstChild(targetName)
-            if target and target.Character and target.Character:FindFirstChild("HumanoidRootPart") then
-                LocalPLR.Character.Humanoid:MoveTo(
-                    target.Character.HumanoidRootPart.Position
-                )
+            local targetPlayer = Players:FindFirstChild(targetName)
+            if targetPlayer and targetPlayer.Character and targetPlayer.Character:FindFirstChild("HumanoidRootPart") then
+                if LocalPLR and LocalPLR.Character and LocalPLR.Character:FindFirstChild("Humanoid") then
+                    LocalPLR.Character.Humanoid:MoveTo(targetPlayer.Character.HumanoidRootPart.Position)
+                end
             end
-            print("[EXECUTE] .walkto:", targetName)
+            print("[BOT EXECUTE] .walkto: " .. targetName)
         end
     end
 end
