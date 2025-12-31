@@ -1,29 +1,33 @@
-# ollama_proxy_sanitize.py
+# ollama_proxy_stable.py
 from flask import Flask, request, jsonify
 import requests
 import json
+import threading
+import queue
 
 OLLAMA_URL = "http://127.0.0.1:11434/api/chat"  # Ollama local endpoint
+MAX_PLAYERS = 12  # trim system prompt to first 12 players
 
 app = Flask(__name__)
+
+# Queue to handle incoming Roblox requests safely
+request_queue = queue.Queue()
 
 def sanitize_text(text):
     """Remove control characters and normalize line breaks"""
     if not text:
         return ""
-    # remove control chars except newline/tab/carriage return
     text = "".join(c for c in text if ord(c) >= 32 or c in "\n\r\t")
-    # normalize unicode line separators
     text = text.replace("\u2028", "\n").replace("\u2029", "\n")
     return text
 
-def sanitize_payload(payload, max_players=12):
-    """Sanitize messages and optionally trim system message"""
+def sanitize_payload(payload):
+    """Sanitize messages and trim system message"""
     messages = payload.get("messages", [])
     for msg in messages:
         if "content" in msg and isinstance(msg["content"], str):
             msg["content"] = sanitize_text(msg["content"])
-    # Trim system player list if present
+    # trim system player list
     if messages and messages[0]["role"] == "system":
         lines = messages[0]["content"].split("\n")
         header = []
@@ -33,48 +37,44 @@ def sanitize_payload(payload, max_players=12):
                 players.append(line)
             else:
                 header.append(line)
-        players = players[:max_players]  # keep only first N players
+        players = players[:MAX_PLAYERS]
         messages[0]["content"] = "\n".join(header + players)
     return payload
+
+def worker():
+    """Worker thread to process requests from queue sequentially"""
+    while True:
+        req_item = request_queue.get()
+        if req_item is None:
+            break
+        payload, result_queue = req_item
+        try:
+            payload = sanitize_payload(payload)
+            res = requests.post(OLLAMA_URL, json=payload, timeout=30)
+            if res.status_code == 200:
+                result_queue.put(res.json())
+            else:
+                result_queue.put({"error": f"Ollama HTTP {res.status_code}"})
+        except Exception as e:
+            result_queue.put({"error": str(e)})
+        request_queue.task_done()
+
+# start worker thread
+threading.Thread(target=worker, daemon=True).start()
 
 @app.route("/chat", methods=["POST"])
 def chat_proxy():
     try:
         payload = request.get_json(force=True)
-
-        # Debug: show raw payload from Roblox
-        print("=== Payload received from Roblox ===")
-        print(json.dumps(payload, indent=2, ensure_ascii=False))
-        print("===================================")
-
-        # Sanitize payload
-        payload = sanitize_payload(payload)
-
-        # Debug: show sanitized payload sent to Ollama
-        print("=== Payload sent to Ollama ===")
-        print(json.dumps(payload, indent=2, ensure_ascii=False))
-        print("===================================")
-
-        # Retry once if Ollama fails
-        for attempt in range(2):
-            try:
-                res = requests.post(OLLAMA_URL, json=payload, timeout=30)
-                if res.status_code == 200:
-                    print("=== Ollama Response ===")
-                    print(res.text)
-                    print("=======================")
-                    return jsonify(res.json())
-                else:
-                    print(f"Attempt {attempt+1} failed: HTTP {res.status_code}")
-            except Exception as e:
-                print(f"Attempt {attempt+1} exception: {e}")
-
-        return jsonify({"error": "Ollama failed"}), 500
-
+        # use a queue for this specific request to wait for result
+        result_queue = queue.Queue()
+        request_queue.put((payload, result_queue))
+        # wait for result
+        result = result_queue.get(timeout=60)  # wait up to 60s
+        return jsonify(result)
     except Exception as e:
-        print(f"Proxy exception: {e}")
         return jsonify({"error": str(e)}), 500
 
 if __name__ == "__main__":
-    print("Starting Ollama sanitize proxy on http://0.0.0.0:5000")
+    print("Starting stable Ollama proxy on http://0.0.0.0:5000")
     app.run(host="0.0.0.0", port=5000)
